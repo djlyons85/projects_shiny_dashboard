@@ -1,0 +1,301 @@
+---
+title: "From R Projects to Shiny Applications"
+author: "Daniel Lyons, Layne Hansen"
+format: html
+editor: visual
+---
+
+```{r}
+#| include: false
+library(tidyverse)
+library(shiny)
+library(datamods)
+library(shinydashboard)
+```
+
+# Key Concepts to Implement
+
+I will cover some concepts both for adding your data to the template 'as is' and touch on some key concepts that may help you with tweaks.
+
+Some Resources:
+
+Advanced R - <https://adv-r.hadley.nz/index.html>
+
+R for Data Science - <https://r4ds.hadley.nz/>
+
+## Functional Programming
+
+Purpose of functional programming is code optimization and organization. Get the most out of Tidyverse!
+
+```{r}
+
+x <- function(){
+  1 + 2 + 3
+}
+
+x()
+
+print("But we can also pass 'x' into a function")
+print(x)
+print("Or maybe a more clear example")
+
+g <- function(parameter) {
+  parameter() * 2
+}
+g(x)
+
+```
+
+### Why am I telling you this?
+
+1.  Good to know if you are a new R user
+2.  Used a lot in my Shiny template
+3.  **Best way to add your projects to the template.**
+
+The first step is adding your data to the template. You do so via:
+
+get data --\>\> filter data --\>\> execute project function on data --\>\> pass to dashboard
+
+Besides filtering the data, the user needs to handle these steps. Take this example project:
+
+```{r}
+
+data_output <- palmerpenguins::penguins_raw |>
+  na.omit(Sex) |>
+    group_by(Species, Island, Sex) |>
+    summarise(
+      Sample_Size = n(),
+      Culmen_Length = round(mean(`Culmen Length (mm)`, na.rm = TRUE), 1),
+      Culmen_Depth = round(mean(`Culmen Depth (mm)`, na.rm = TRUE), 1),
+      Flipper_Length = round(mean(`Flipper Length (mm)`, na.rm = TRUE), 1),
+      Body_Mass = round(mean(`Body Mass (g)`, na.rm = TRUE), 1),
+      .groups = 'keep'
+      )
+
+print(data_output) #or save to excel, etc.
+
+```
+
+You need to wrap your project in a function like this:
+
+```{r}
+
+your_project_function <- function(.data, other_parameters_if_applicable = NULL){
+  .data |>
+    na.omit(Sex) |>
+    group_by(Species, Island, Sex) |>
+    summarise(
+      Sample_Size = n(),
+      Culmen_Length = round(mean(`Culmen Length (mm)`, na.rm = TRUE), 1),
+      Culmen_Depth = round(mean(`Culmen Depth (mm)`, na.rm = TRUE), 1),
+      Flipper_Length = round(mean(`Flipper Length (mm)`, na.rm = TRUE), 1),
+      Body_Mass = round(mean(`Body Mass (g)`, na.rm = TRUE), 1),
+      .groups = 'keep'
+      ) 
+}
+
+functional_data_output <- your_project_function(palmerpenguins::penguins_raw)
+
+print(functional_data_output)
+
+```
+
+Or you may have multiple outputs. You can still wrap your project in a function and return a list of data frames:
+
+```{r}
+
+your_project_function <- function(.data, other_parameters_if_applicable){
+  df_1 <- .data |>
+    na.omit(Sex) |>
+    group_by(Species, Island, Sex) |>
+    summarise(
+      Sample_Size = n(),
+      Culmen_Length = round(mean(`Culmen Length (mm)`, na.rm = TRUE), 1),
+      Culmen_Depth = round(mean(`Culmen Depth (mm)`, na.rm = TRUE), 1),
+      Flipper_Length = round(mean(`Flipper Length (mm)`, na.rm = TRUE), 1),
+      Body_Mass = round(mean(`Body Mass (g)`, na.rm = TRUE), 1),
+      .groups = 'keep'
+      )
+  df_2 <- .data |>
+    na.omit(Sex) |>
+    group_by(Species) |>
+    summarise(
+      Sample_Size = n(),
+      Culmen_Length = round(mean(`Culmen Length (mm)`, na.rm = TRUE), 1),
+      Culmen_Depth = round(mean(`Culmen Depth (mm)`, na.rm = TRUE), 1),
+      Flipper_Length = round(mean(`Flipper Length (mm)`, na.rm = TRUE), 1),
+      Body_Mass = round(mean(`Body Mass (g)`, na.rm = TRUE), 1),
+      .groups = 'keep'
+      )
+  return(list("penguin_detailed_groups" = df_1, "penguin_species_summary" = df_2))
+}
+
+functional_data_output <- your_project_function(palmerpenguins::penguins_raw)
+
+print(functional_data_output[[2]])
+
+```
+
+You can now add your data and project to the dashboard.
+
+## Shiny Key Concept
+
+-   UI \<-\> Server
+
+-   Reactive Environment
+
+-   Shiny Modules
+
+Some Resources:
+
+Developer Intro Tutorial - <https://shiny.posit.co/r/getstarted/shiny-basics/lesson1/>
+
+Mastering Shiny - <https://mastering-shiny.org/index.html>
+
+### UI \<-\> Server
+
+Shiny has specific syntax that you need to get used to.
+
+The UI side of Shiny generates inputs from the user that get passed to the server, organizes, formats, and stylizes much of what the user sees, and places server outputs within that display.
+
+The Server side is the back end of your application. Data wrangling, statistical analysis, and data visualization take place in the server along with functionality that is dynamic to user inputs. The server can even generate dynamic chunks of UI.
+
+A full tutorial is beyond the scope of this session. Instead let's look at some examples from the Shinylive page: <https://shinylive.io/r/examples/#hello-shiny>
+
+### Reactive Environment
+
+In the typical R environment this works the same every time.
+
+```{r}
+object_1 <- 0
+
+object_2 <- object_1 * 10
+
+object_1 <- object_1 + 100
+
+print(glue::glue("object_1 = {object_1} and object_2 = {object_2}"))
+
+```
+
+But if you switch the order you get very different outcomes!
+
+```{r}
+object_1 <- 0
+
+object_1 <- object_1 + 100
+
+object_2 <- object_1 * 10
+
+print(glue::glue("object_1 = {object_1} and object_2 = {object_2}"))
+
+
+```
+
+As an interactive web page framework, Shiny needs to be more flexible. In the above example imagine we want to allow a colleague to decide how many times to add 100 to object 1, and when to updated object 2. How would you write the script then? ...
+
+You can actually do this with Shiny!
+
+```{r}
+#| eval: false
+ui <- fluidPage(
+  fluidPage(
+    fluidRow("Add 100 and Update Output",
+      actionButton("adder", "Add 100"), 
+             actionButton("update", "Update Output")
+             ),
+    fluidRow(textOutput("text_output"))
+  )
+)
+
+server <- function(input, output, session) {
+  
+  object_1 <- reactiveVal(0)
+  object_2 <- reactiveVal()
+  observeEvent(input$adder, {
+    value <- object_1() + 100
+    object_1(value)
+  }
+  )
+  
+  observeEvent(input$update, {
+    updated_value <- object_1() * 10
+    object_2(updated_value)
+    output$text_output <- renderText({
+      glue::glue("object_1 = {object_1()} and object_2 = {object_2()}")
+    })
+  }
+  )
+}
+
+shinyApp(ui, server)
+```
+
+Shiny uses Reactives and Observers to provide structure to a dynamic application.
+
+Reactive -\> Holds a cached value, only updated when told (inputs change or event trigger), no external side effects
+
+Observer -\> Updates unless told not to, no value, purpose is to create external side effects
+
+### Shiny Modules
+
+Modules are the Shiny answer to functional programming. You can use traditional functions with Shiny, but only for data manipulation. You cannot systematically create UI, Server output, or interactions between the two with standard R functions.
+
+```{r}
+#| eval: false
+add_value_buttonUI <- function(id, increment) {
+  ns <- NS(id)
+  fluidRow(glue::glue("Add {increment} and Update Output"),
+           actionButton(ns("adder"), glue::glue("Add {increment}")))
+}
+
+add_value_buttonServer <- function(id, increment) {
+  moduleServer(
+    id,
+    function(input, output, session) {
+      output_value <- reactiveVal(0)
+      observeEvent(input$adder, {
+        update_value <- output_value() + increment
+        output_value(update_value)
+      })
+      return(output_value)
+    }
+  )
+}
+
+ui <- fluidPage(
+    add_value_buttonUI("ten", 10),
+    add_value_buttonUI("hundred", 100),
+     fluidRow(actionButton("update", "Update Output"), textOutput("text_output"))
+  )
+
+server <- function(input, output, session) {
+  
+  ten_adder <- add_value_buttonServer("ten", 10)
+  hundred_adder <- add_value_buttonServer("hundred", 100)
+  
+  
+  object_1 <- reactiveVal(0)
+  observe({
+    new_object_1 <- ten_adder() + hundred_adder()
+    object_1(new_object_1)
+  })
+  
+  object_2 <- reactiveVal()
+  observeEvent(input$update, {
+    updated_value <- object_1() * 10
+    object_2(updated_value)
+    output$text_output <- renderText({
+      glue::glue("object_1 = {object_1()} and object_2 = {object_2()}")
+    })
+  }
+  )
+}
+
+shinyApp(ui, server)
+```
+
+#### Issues
+
+1.  Need to follow specific practices (use parent ReactiveValues) when communicating between or nesting modules
+
+2.  Generating UI in the server is hard!
